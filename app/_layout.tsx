@@ -7,6 +7,7 @@ import '../global.css';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { CartProvider } from '../lib/context/CartContext';
 import { UserProvider } from '../lib/context/UserContext';
+import { AuthProvider } from '../lib/context/AuthContext';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -16,16 +17,19 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <UserProvider>
-      <CartProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          </Stack>
-          <StatusBar style="auto" />
-        </ThemeProvider>
-      </CartProvider>
-    </UserProvider>
+    <AuthProvider>
+      <UserProvider>
+        <CartProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="auth" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+            </Stack>
+            <StatusBar style="auto" />
+          </ThemeProvider>
+        </CartProvider>
+      </UserProvider>
+    </AuthProvider>
   );
 }

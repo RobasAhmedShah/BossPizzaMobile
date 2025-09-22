@@ -19,12 +19,17 @@ import {
   Moon,
   Shield,
   X,
-  Save
+  Save,
+  LogOut
 } from 'lucide-react-native';
 import { useUser, UserAddress } from '../../lib/context/UserContext';
+import { useAuth } from '../../lib/context/AuthContext';
+import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
   const { state, updateProfile, addAddress, updateAddress, deleteAddress, setDefaultAddress } = useUser();
+  const { state: authState, signOut } = useAuth();
+  const router = useRouter();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [promotionalEnabled, setPromotionalEnabled] = useState(true);
   const [orderUpdatesEnabled, setOrderUpdatesEnabled] = useState(true);
@@ -191,16 +196,32 @@ export default function ProfileScreen() {
               <Edit3 size={16} color="white" />
             </TouchableOpacity>
           </View>
-          <Text className="text-2xl font-bold mt-4 text-gray-800">{userProfile?.name || 'Your Name'}</Text>
-          <Text className="text-gray-600 mt-1">{userProfile?.email || 'your.email@example.com'}</Text>
-          <Text className="text-gray-600">{userProfile?.phone || '+1 (555) 123-4567'}</Text>
-          <TouchableOpacity 
-            className="bg-red-500 rounded-full px-4 py-2 mt-3 flex-row items-center"
-            onPress={openEditProfile}
-          >
-            <Edit3 size={16} color="white" />
-            <Text className="text-white font-medium ml-2">Edit Profile</Text>
-          </TouchableOpacity>
+          <Text className="text-2xl font-bold mt-4 text-gray-800">
+            {authState.isAuthenticated ? (authState.user?.email?.split('@')[0] || 'User') : 'Guest User'}
+          </Text>
+          <Text className="text-gray-600 mt-1">
+            {authState.isAuthenticated ? authState.user?.email : 'Sign in to save your preferences'}
+          </Text>
+          {authState.isAuthenticated ? (
+            <>
+              <Text className="text-gray-600">{userProfile?.phone || '+1 (555) 123-4567'}</Text>
+              <TouchableOpacity 
+                className="bg-red-500 rounded-full px-4 py-2 mt-3 flex-row items-center"
+                onPress={openEditProfile}
+              >
+                <Edit3 size={16} color="white" />
+                <Text className="text-white font-medium ml-2">Edit Profile</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity 
+              className="bg-red-500 rounded-full px-6 py-3 mt-3 flex-row items-center"
+              onPress={() => router.push('/auth')}
+            >
+              <User size={20} color="white" />
+              <Text className="text-white font-medium ml-2">Sign In</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Address Book Section */}
@@ -385,9 +406,28 @@ export default function ProfileScreen() {
         </View>
 
         {/* Logout Button */}
-        <TouchableOpacity className="bg-white rounded-xl shadow-sm p-4 flex-row items-center justify-center mb-6">
-          <Text className="text-red-500 font-bold text-lg">Log Out</Text>
-        </TouchableOpacity>
+        {authState.isAuthenticated && (
+          <TouchableOpacity 
+            className="bg-white rounded-xl shadow-sm p-4 flex-row items-center justify-center mb-6"
+            onPress={() => {
+              Alert.alert(
+                'Sign Out',
+                'Are you sure you want to sign out?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Sign Out', 
+                    style: 'destructive',
+                    onPress: signOut
+                  }
+                ]
+              );
+            }}
+          >
+            <LogOut size={20} color="#D32F2F" />
+            <Text className="text-red-500 font-bold text-lg ml-2">Sign Out</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {/* Edit Profile Modal */}

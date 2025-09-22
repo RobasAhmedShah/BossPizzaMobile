@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, TextInput, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MapPin, ShoppingBag, Pizza, Star, Clock, Search, Plus, Minus, X, Edit3, Save } from 'lucide-react-native';
+import { MapPin, ShoppingBag, Pizza, Star, Clock, Search, Plus, Minus, X, Edit3, Save, User, LogOut } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { MenuService } from '../../lib/services/menuService';
 import { Category, MenuItem } from '../../lib/supabase';
 import { useCart, CartItem } from '../../lib/context/CartContext';
 import { useUser, UserAddress } from '../../lib/context/UserContext';
+import { useAuth } from '../../lib/context/AuthContext';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { addItem } = useCart();
   const { state: userState, setDefaultAddress } = useUser();
+  const { state: authState, signOut } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [featuredPizzas, setFeaturedPizzas] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,12 +137,46 @@ export default function HomeScreen() {
             <Text className="text-white text-2xl font-bold">Big Boss Pizza</Text>
             <Text className="text-white text-opacity-90">Delivered to your door</Text>
           </View>
-          <TouchableOpacity 
-            className="bg-white bg-opacity-20 p-3 rounded-full"
-            onPress={() => router.push('/(tabs)/cart')}
-          >
-            <ShoppingBag color="white" size={24} />
-          </TouchableOpacity>
+          <View className="flex-row items-center">
+            {authState.isAuthenticated ? (
+              <TouchableOpacity 
+                onPress={signOut}
+                style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)', 
+                  padding: 12, 
+                  borderRadius: 25, 
+                  marginRight: 12 
+                }}
+              >
+                <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>↩</Text>
+                <Text style={{ color: 'white', fontSize: 10, marginTop: 2 }}>Logout</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                onPress={() => router.push('/auth')}
+                style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)', 
+                  padding: 12, 
+                  borderRadius: 25, 
+                  marginRight: 12 
+                }}
+              >
+                <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>👤</Text>
+                <Text style={{ color: 'white', fontSize: 10, marginTop: 2 }}>Sign In</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity 
+              onPress={() => router.push('/(tabs)/cart')}
+              style={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.3)', 
+                padding: 12, 
+                borderRadius: 25 
+              }}
+              >
+                <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>🛒</Text>
+                <Text style={{ color: 'white', fontSize: 10, marginTop: 2 }}>Cart</Text>
+              </TouchableOpacity>
+          </View>
         </View>
       </View>
 
