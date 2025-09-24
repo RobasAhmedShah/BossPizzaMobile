@@ -1,15 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Supabase configuration
 const supabaseUrl = 'https://svgpmbhocwhcnqmyuhzv.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2Z3BtYmhvY3doY25xbXl1aHp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5MDAyMDUsImV4cCI6MjA2OTQ3NjIwNX0.bjIG4_5vqTtQbraCvdaqn3-jaT7iB6m-Q1G7jL71I6M';
 
+// Avoid accessing React Native AsyncStorage during Node/EAS export
+const isNodeEnvironment = typeof window === 'undefined';
+
+// Conditionally resolve AsyncStorage only in React Native runtime
+let rnAsyncStorage: any = undefined;
+if (!isNodeEnvironment) {
+	// eslint-disable-next-line @typescript-eslint/no-var-requires
+	rnAsyncStorage = require('@react-native-async-storage/async-storage').default;
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
+    storage: rnAsyncStorage,
+    autoRefreshToken: !isNodeEnvironment,
+    persistSession: !isNodeEnvironment,
     detectSessionInUrl: false,
   },
 });

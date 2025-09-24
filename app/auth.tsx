@@ -233,3 +233,4 @@ export default function AuthScreen() {
     </SafeAreaView>
   );
 }
+

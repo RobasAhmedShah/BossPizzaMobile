@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.robas.bosspizzamobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -50,6 +51,12 @@
         "projectId": "b080776e-4978-46cb-9664-41401dd870d8"
       }
     },
-    "owner": "robas"
+    "owner": "robas",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b080776e-4978-46cb-9664-41401dd870d8"
+    }
   }
 }

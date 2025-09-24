@@ -78,3 +78,4 @@ Make sure your Supabase project has:
 4. **Add Biometric Authentication**:
    - Touch ID / Face ID integration
    - Secure storage for biometric data
+
