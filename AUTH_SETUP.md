@@ -79,3 +79,5 @@ Make sure your Supabase project has:
    - Touch ID / Face ID integration
    - Secure storage for biometric data
 
+
+

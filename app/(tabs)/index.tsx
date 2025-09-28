@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, TextInput, Modal, Alert, Linking, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MapPin, ShoppingBag, Pizza, Star, Clock, Search, Plus, Minus, X, Edit3, Save, User, LogOut } from 'lucide-react-native';
+import { MapPin, ShoppingBag, Pizza, Star, Clock, Search, Plus, Minus, X, Edit3, Save } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MenuService } from '../../lib/services/menuService';
 import { Category, MenuItem } from '../../lib/supabase';
 import { useCart, CartItem } from '../../lib/context/CartContext';
 import { useUser, UserAddress } from '../../lib/context/UserContext';
 import { useAuth } from '../../lib/context/AuthContext';
+import LocationService, { LocationData } from '../../lib/services/locationService';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { addItem } = useCart();
+  const { addItem, state: cartState } = useCart();
   const { state: userState, setDefaultAddress } = useUser();
   const { state: authState, signOut } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -28,6 +30,73 @@ export default function HomeScreen() {
   // Address change modal state
   const [addressChangeModalVisible, setAddressChangeModalVisible] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<UserAddress | null>(null);
+  
+
+  
+  // Device location state
+  const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string>('');
+
+  // Refresh state
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Calculate total items in cart
+  const totalCartItems = cartState.items.reduce((total, item) => total + item.quantity, 0);
+
+  // Check location permission on app start
+  useEffect(() => {
+    const checkLocationPermission = async () => {
+      try {
+        // If permission was granted before, try to get current location automatically
+        const permissionGranted = await AsyncStorage.getItem('location_permission_granted');
+        if (permissionGranted === 'true') {
+          await getCurrentDeviceLocation();
+        }
+      } catch (error) {
+        console.error('Error checking location permission:', error);
+      }
+    };
+
+    checkLocationPermission();
+  }, []);
+
+  // Refresh function - pulls fresh data from all sources
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      
+      // Clear cache for fresh data
+      MenuService.clearCache();
+      
+      // Refresh menu data
+      const [categoriesData, popularItems] = await Promise.all([
+        MenuService.getCategories(),
+        MenuService.getPopularItems(),
+      ]);
+      
+      setCategories(categoriesData);
+      setFeaturedPizzas(popularItems);
+      
+      // Refresh location if available (force fresh location)
+      if (currentLocation) {
+        // Clear location cache and get fresh location
+        await LocationService.clearLocationCache();
+        await getCurrentDeviceLocation();
+      }
+      
+      // Clear any search state
+      setSearchQuery('');
+      setSearchResults([]);
+      setIsSearching(false);
+      
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      Alert.alert('Refresh Failed', 'Unable to refresh data. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Fetch data from Supabase
   useEffect(() => {
@@ -50,6 +119,29 @@ export default function HomeScreen() {
 
     fetchData();
   }, []);
+
+  // Get current device location
+  const getCurrentDeviceLocation = async () => {
+    try {
+      setLocationLoading(true);
+      setLocationError('');
+      
+      const locationData = await LocationService.getCurrentLocation();
+      if (locationData) {
+        setCurrentLocation(locationData);
+        console.log('Location updated:', LocationService.formatLocationForDisplay(locationData));
+      } else {
+        setLocationError('Unable to get location');
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+      setLocationError('Location access failed');
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+
 
   // Search functionality
   const handleSearch = async (query: string) => {
@@ -83,11 +175,112 @@ export default function HomeScreen() {
   };
 
   const getCurrentAddress = () => {
+    // First priority: Device location if available
+    if (currentLocation) {
+      return LocationService.formatLocationForDisplay(currentLocation);
+    }
+    
+    // Second priority: User's default address
     const defaultAddress = userState.profile?.addresses.find(addr => addr.isDefault);
     if (defaultAddress) {
       return `${defaultAddress.street}, ${defaultAddress.city}`;
     }
-    return '123 Pizza Street, Foodville'; // Fallback
+    
+    // Fallback: Default address
+    return 'Set your delivery location';
+  };
+
+  // Manual location permission request
+  const requestLocationManually = async () => {
+    try {
+      setLocationLoading(true);
+      setLocationError('');
+      
+      const permissionStatus = await LocationService.requestLocationPermission();
+      
+      if (permissionStatus.granted) {
+        await AsyncStorage.setItem('location_permission_granted', 'true');
+        await AsyncStorage.setItem('location_permission_asked', 'true');
+        Alert.alert('Success', 'Location permission granted! Getting your location...');
+        await getCurrentDeviceLocation();
+      } else {
+        await AsyncStorage.setItem('location_permission_granted', 'false');
+        await AsyncStorage.setItem('location_permission_asked', 'true');
+        if (permissionStatus.canAskAgain) {
+          Alert.alert(
+            'Permission Denied', 
+            'Location permission was denied. You can enable it in your device settings.',
+            [
+              { text: 'OK' },
+              { text: 'Open Settings', onPress: () => {
+                // This would open device settings if available
+                Alert.alert('Info', 'Please go to Settings > Privacy > Location Services to enable location for Big Boss Pizza');
+              }}
+            ]
+          );
+        } else {
+          Alert.alert(
+            'Permission Blocked', 
+            'Location permission is permanently denied. Please enable it in your device settings: Settings > Privacy > Location Services > Big Boss Pizza'
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error requesting location permission:', error);
+      setLocationError('Failed to request location permission');
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+
+  // Open location in Google Maps
+  const openLocationInMaps = async () => {
+    if (!currentLocation) {
+      Alert.alert('No Location', 'Please get your current location first');
+      return;
+    }
+
+    try {
+      const { latitude, longitude } = currentLocation;
+      const address = LocationService.formatLocationForDisplay(currentLocation);
+      
+      // Try Google Maps app first (Android/iOS)
+      const googleMapsAppUrl = `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodeURIComponent(address)})&z=18`;
+      
+      // Apple Maps URL (iOS)
+      const appleMapsUrl = `maps://?q=${encodeURIComponent(address)}&ll=${latitude},${longitude}&z=18`;
+      
+      // Fallback to web Google Maps
+      const webGoogleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+      
+      // Check which maps apps are available
+      const canOpenGoogleMaps = await Linking.canOpenURL(googleMapsAppUrl);
+      const canOpenAppleMaps = await Linking.canOpenURL(appleMapsUrl);
+      
+      // Try to open in preferred order
+      if (canOpenGoogleMaps) {
+        // Google Maps app
+        await Linking.openURL(googleMapsAppUrl);
+      } else if (canOpenAppleMaps) {
+        // Apple Maps (iOS fallback)
+        await Linking.openURL(appleMapsUrl);
+      } else {
+        // Web Google Maps as final fallback
+        await Linking.openURL(webGoogleMapsUrl);
+      }
+      
+    } catch (error) {
+      console.error('Error opening maps:', error);
+      // Even if native apps fail, try web Google Maps
+      try {
+        const { latitude, longitude } = currentLocation;
+        const webUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+        await Linking.openURL(webUrl);
+      } catch (webError) {
+        Alert.alert('Error', 'Failed to open Maps. Please check if you have Google Maps installed.');
+      }
+    }
   };
 
   const openCustomization = (item: MenuItem) => {
@@ -115,7 +308,10 @@ export default function HomeScreen() {
       menuItem: selectedItem,
       size: size,
       quantity: quantity,
-      customizations: {},
+      customizations: {
+        toppings: [],
+        notes: ''
+      },
       totalPrice: calculateTotalPrice(),
       name: selectedItem.name,
       description: selectedItem.description,
@@ -133,68 +329,127 @@ export default function HomeScreen() {
       {/* Header */}
       <View className="bg-[#D32F2F] pt-12 pb-4 px-4">
         <View className="flex-row justify-between items-center">
-          <View>
-            <Text className="text-white text-2xl font-bold">Big Boss Pizza</Text>
-            <Text className="text-white text-opacity-90">Delivered to your door</Text>
+          <View className="flex-row items-center flex-1">
+        <Image
+              source={require('../../assets/images/BBP.jpg')}
+              style={{ 
+                width: 50, 
+                height: 50, 
+                borderRadius: 25,
+                marginRight: 12 
+              }}
+              resizeMode="cover"
+            />
+            <View className="flex-1">
+              <Text className="text-white text-2xl font-bold">Big Boss Pizza</Text>
+              <Text className="text-white text-opacity-90">Delivered to your door</Text>
+            </View>
           </View>
           <View className="flex-row items-center">
             {authState.isAuthenticated ? (
               <TouchableOpacity 
                 onPress={signOut}
-                style={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.3)', 
-                  padding: 12, 
-                  borderRadius: 25, 
-                  marginRight: 12 
-                }}
+                className="bg-white bg-opacity-20 p-3 rounded-full mr-3 min-w-[44px] min-h-[44px] items-center justify-center"
               >
-                <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>↩</Text>
-                <Text style={{ color: 'white', fontSize: 10, marginTop: 2 }}>Logout</Text>
+                <Text className="text-white text-lg font-bold">↩</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity 
                 onPress={() => router.push('/auth')}
-                style={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.3)', 
-                  padding: 12, 
-                  borderRadius: 25, 
-                  marginRight: 12 
-                }}
+                className="bg-white bg-opacity-20 p-3 rounded-full mr-3 min-w-[44px] min-h-[44px] items-center justify-center"
               >
-                <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>👤</Text>
-                <Text style={{ color: 'white', fontSize: 10, marginTop: 2 }}>Sign In</Text>
+                <Text className="text-white text-lg font-bold">👤</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity 
               onPress={() => router.push('/(tabs)/cart')}
-              style={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.3)', 
-                padding: 12, 
-                borderRadius: 25 
-              }}
-              >
-                <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>🛒</Text>
-                <Text style={{ color: 'white', fontSize: 10, marginTop: 2 }}>Cart</Text>
-              </TouchableOpacity>
+              className="bg-white bg-opacity-20 p-3 rounded-full relative min-w-[44px] min-h-[44px] items-center justify-center"
+            >
+              <Text className="text-white text-xl font-bold">🛒</Text>
+              {totalCartItems > 0 && (
+                <View className="absolute -top-1 -right-1 bg-yellow-400 rounded-full min-w-[20px] h-5 items-center justify-center">
+                  <Text className="text-red-800 text-xs font-bold">
+                    {totalCartItems > 99 ? '99+' : totalCartItems}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </View>
 
       {/* Main Content */}
-      <ScrollView className="flex-1 px-4 py-6">
+      <ScrollView 
+        className="flex-1 px-4 py-6"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#D32F2F']} // Android
+            tintColor="#D32F2F" // iOS
+            title="Pull to refresh..." // iOS
+            titleColor="#666666" // iOS
+          />
+        }
+      >
         {loading ? (
           <View className="flex-1 items-center justify-center py-20">
-            <Text className="text-gray-500 text-lg">Loading...</Text>
+            <Text className="text-gray-500 text-lg">
+              {refreshing ? 'Refreshing...' : 'Loading...'}
+            </Text>
           </View>
         ) : (
           <>
-            {/* Location Section */}
-            <View className="flex-row items-center bg-[#F5F5F5] rounded-xl p-4 mb-6">
-              <MapPin color="#D32F2F" size={20} />
-              <Text className="flex-1 ml-3 text-[#212121] font-medium">{getCurrentAddress()}</Text>
-              <TouchableOpacity onPress={openAddressChange}>
-                <Text className="text-[#D32F2F] font-bold">Change</Text>
-              </TouchableOpacity>
+            {/* Location Section - Foodpanda Style */}
+            <View className="bg-[#F5F5F5] rounded-xl p-4 mb-6 shadow-sm">
+              <View className="flex-row items-center">
+                <Text className="text-[#D32F2F] text-xl mr-1">📍</Text>
+                <TouchableOpacity 
+                  className="flex-1 ml-2"
+                  onPress={openLocationInMaps}
+                  disabled={!currentLocation}
+                >
+                  <Text className={`font-medium text-base ${currentLocation ? 'text-[#D32F2F]' : 'text-[#212121]'}`}>
+                    {locationLoading ? "Getting location..." : getCurrentAddress()}
+                  </Text>
+                  {locationError ? (
+                    <Text className="text-red-500 text-xs mt-1">{locationError}</Text>
+                  ) : null}
+                  {currentLocation ? (
+                    <Text className="text-green-600 text-xs mt-1">📱 Current location • Tap to view in Maps</Text>
+                  ) : null}
+                </TouchableOpacity>
+                <View className="flex-row items-center">
+                  {currentLocation ? (
+                    <TouchableOpacity 
+                      onPress={getCurrentDeviceLocation}
+                      className="mr-3 p-2"
+                      disabled={locationLoading}
+                    >
+                      <Text className="text-[#D32F2F] text-sm">🔄</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  <TouchableOpacity onPress={openAddressChange} className="ml-2">
+                    <Text className="text-[#D32F2F] font-bold text-sm">Change</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              {/* Get Location Button */}
+              {!currentLocation ? (
+                <View className="mt-3 pt-3 border-t border-gray-200">
+                  <TouchableOpacity 
+                    onPress={requestLocationManually}
+                    className="bg-[#D32F2F] py-3 px-4 rounded-lg flex-row items-center justify-center"
+                    disabled={locationLoading}
+                  >
+                    <Text className="text-white text-lg mr-2">📍</Text>
+                    <Text className="text-white font-semibold text-base">
+                      {locationLoading ? "Finding location..." : "Use current location"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
 
             {/* Search Bar */}
@@ -312,10 +567,36 @@ export default function HomeScreen() {
                       onPress={() => openCustomization(pizza)}
                     >
                       <View className="items-center mb-3">
-        <Image
-                          source={{ uri: pizza.image_url }}
-                          className="w-16 h-16 rounded-xl mb-2"
-                        />
+                        <View style={{
+                          width: 64,
+                          height: 64,
+                          borderRadius: 12,
+                          marginBottom: 8,
+                          backgroundColor: '#F5F5F5',
+                          justifyContent: 'center',
+                          alignItems: 'center'
+                        }}>
+                          {pizza.image_url && pizza.image_url.trim() !== '' ? (
+                            <Image
+                              source={{ 
+                                uri: pizza.image_url,
+                                cache: 'force-cache'
+                              }}
+                              style={{
+                                width: 64,
+                                height: 64,
+                                borderRadius: 12,
+                              }}
+                              resizeMode="cover"
+                              onError={(error) => {
+                                console.log('Image load error for:', pizza.name, error.nativeEvent.error);
+                                // You could set a state here to show fallback
+                              }}
+                            />
+                          ) : (
+                            <Text style={{ fontSize: 24 }}>🍕</Text>
+                          )}
+                        </View>
                         <Text className="text-lg font-bold text-[#212121]">{pizza.name}</Text>
                       </View>
                       <View className="flex-row justify-between items-center">
@@ -544,6 +825,8 @@ export default function HomeScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+
     </View>
   );
 }
