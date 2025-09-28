@@ -10,6 +10,7 @@ import { useCart, CartItem } from '../../lib/context/CartContext';
 import { useUser, UserAddress } from '../../lib/context/UserContext';
 import { useAuth } from '../../lib/context/AuthContext';
 import LocationService, { LocationData } from '../../lib/services/locationService';
+import OptimizedImage from '../../components/OptimizedImage';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -567,36 +568,15 @@ export default function HomeScreen() {
                       onPress={() => openCustomization(pizza)}
                     >
                       <View className="items-center mb-3">
-                        <View style={{
-                          width: 64,
-                          height: 64,
-                          borderRadius: 12,
-                          marginBottom: 8,
-                          backgroundColor: '#F5F5F5',
-                          justifyContent: 'center',
-                          alignItems: 'center'
-                        }}>
-                          {pizza.image_url && pizza.image_url.trim() !== '' ? (
-                            <Image
-                              source={{ 
-                                uri: pizza.image_url,
-                                cache: 'force-cache'
-                              }}
-                              style={{
-                                width: 64,
-                                height: 64,
-                                borderRadius: 12,
-                              }}
-                              resizeMode="cover"
-                              onError={(error) => {
-                                console.log('Image load error for:', pizza.name, error.nativeEvent.error);
-                                // You could set a state here to show fallback
-                              }}
-                            />
-                          ) : (
-                            <Text style={{ fontSize: 24 }}>🍕</Text>
-                          )}
-                        </View>
+                        <OptimizedImage
+                          uri={pizza.image_url}
+                          width={64}
+                          height={64}
+                          borderRadius={12}
+                          style={{ marginBottom: 8 }}
+                          fallbackText="🍕"
+                          showLoadingIndicator={true}
+                        />
                         <Text className="text-lg font-bold text-[#212121]">{pizza.name}</Text>
                       </View>
                       <View className="flex-row justify-between items-center">

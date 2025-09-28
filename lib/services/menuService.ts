@@ -1,4 +1,5 @@
 import { supabase, Category, MenuItem, MenuItemSize, Deal } from '../supabase';
+import { ImageService } from './imageService';
 
 // Simple in-memory cache
 class MenuCache {
@@ -68,7 +69,20 @@ export class MenuService {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      const items = data || [];
+      
+      // Preload images for better performance
+      const imageUrls = items
+        .map(item => item.image_url)
+        .filter(url => url && url.trim() !== '');
+      
+      if (imageUrls.length > 0) {
+        ImageService.preloadImages(imageUrls).catch(error => {
+          console.log('Failed to preload some images:', error);
+        });
+      }
+      
+      return items;
     } catch (error) {
       console.error('Error fetching menu items:', error);
       return [];
@@ -87,6 +101,18 @@ export class MenuService {
 
       if (error) throw error;
       const items = data || [];
+      
+      // Preload images for better performance
+      const imageUrls = items
+        .map(item => item.image_url)
+        .filter(url => url && url.trim() !== '');
+      
+      if (imageUrls.length > 0) {
+        ImageService.preloadImages(imageUrls).catch(error => {
+          console.log('Failed to preload some images:', error);
+        });
+      }
+      
       MenuCache.set(cacheKey, items);
       return items;
     } catch (error) {

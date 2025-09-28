@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
-import { Minus, Plus, X, ShoppingCart, CreditCard, Wallet, Smartphone } from 'lucide-react-native';
+import { Minus, Plus, X, ShoppingCart, CreditCard, Wallet } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useCart } from '../../lib/context/CartContext';
 
@@ -8,8 +8,6 @@ import { useCart } from '../../lib/context/CartContext';
 // Mock data for payment methods
 const paymentMethods = [
   { id: '1', name: 'Credit Card', icon: 'CreditCard' },
-  { id: '2', name: 'PayPal', icon: 'Wallet' },
-  { id: '3', name: 'Apple Pay', icon: 'Smartphone' },
   { id: '4', name: 'Cash on Delivery', icon: 'Wallet' },
 ];
 

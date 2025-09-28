@@ -7,6 +7,7 @@ import { Category, MenuItem } from '../../lib/supabase';
 import { useCart, CartItem } from '../../lib/context/CartContext';
 import { DEALS, PizzaCustomization } from '../../lib/types/pizza';
 import PizzaBuilder from '../../components/PizzaBuilder';
+import OptimizedImage from '../../components/OptimizedImage';
 
 const menuCategories = [
   { id: '1', name: 'Popular', icon: '🔥' },
@@ -272,9 +273,13 @@ export default function MenuScreen() {
         className="flex-row"
         onPress={() => openCustomization(item)}
       >
-        <Image 
-          source={{ uri: item.image_url }} 
-          className="w-20 h-20 rounded-xl"
+        <OptimizedImage
+          uri={item.image_url}
+          width={80}
+          height={80}
+          borderRadius={12}
+          fallbackText="🍕"
+          showLoadingIndicator={true}
         />
         <View className="ml-4 flex-1">
           <View className="flex-row justify-between">
@@ -442,6 +447,16 @@ export default function MenuScreen() {
             className="px-4 mt-2 flex-1"
             contentContainerStyle={{ paddingBottom: 20 }}
             showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={10}
+            windowSize={10}
+            getItemLayout={(data, index) => ({
+              length: 120, // Approximate item height
+              offset: 120 * index,
+              index,
+            })}
             ListEmptyComponent={
               searchQuery.trim().length > 0 ? (
                 <View className="py-8 items-center">
@@ -488,9 +503,14 @@ export default function MenuScreen() {
             <ScrollView className="px-4">
               {/* Item Header */}
               <View className="items-center py-4">
-        <Image
-                  source={{ uri: selectedItem.image_url }} 
-                  className="w-48 h-48 rounded-2xl mb-4"
+                <OptimizedImage
+                  uri={selectedItem.image_url}
+                  width={192}
+                  height={192}
+                  borderRadius={16}
+                  style={{ marginBottom: 16 }}
+                  fallbackText="🍕"
+                  showLoadingIndicator={true}
                 />
                 <Text className="text-2xl font-bold text-gray-900">{selectedItem.name}</Text>
                 <Text className="text-gray-500 text-center mt-2">{selectedItem.description}</Text>
